@@ -123,5 +123,5 @@ const downloadFile = async (url, filename) => {
     }
     client._log.warn("done exiting...");
     await client.disconnect();
-    process.exit(1);
+    process.exit(0);
 })();
