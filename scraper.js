@@ -102,7 +102,7 @@ const downloadFile = async (url, filename) => {
     for (let release of androidData.releases.reverse()) {
         console.log(`downloading ${release.filename}`);
         let filePath = await downloadFile(release.link, release.filename);
-        let caption = `**WhatsApp Messenger Android**\nVersion: \`${release.version} (${release.versioncode})\`\nPublished on: \`${release.date}\`\nMD5: \`${release.md5}\``;
+        let caption = `**WhatsApp Messenger Android ${/beta|alpha/.test(release.title) ? 'beta': ''}**\nVersion: \`${release.version} (${release.versioncode})\`\nPublished on: \`${release.date}\`\nMD5: \`${release.md5}\``;
         console.log('uploading to telegram');
         await client.sendFile(process.env.CHANNEL_ID, { file: filePath, forceDocument: true, workers: 5, caption: caption });
         fs.unlinkSync(filePath);
