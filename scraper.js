@@ -28,40 +28,39 @@ const waAndroidLink = async (apkMirrorUrl) => {
         });
     }
     // checking for updates by comparing this data with previous one since i dont wanna use a database so fetching data from github
-    var preVersions = await getWebContent('https://raw.githubusercontent.com/arunpt/wafiles/main/releases.json', true)
-    var combinedArray = preVersions.android.stable.concat(preVersions.android.beta);
-    var updatedVersions = combinedArray.filter((item) => availableVersions.map(item => item.version).indexOf(item) === -1);
-    var downloadLinks = { releases: [], versions: [] };
+    var prevData = await getWebContent('https://raw.githubusercontent.com/arunpt/wafiles/main/releases.json', true);
+    var preVersions = prevData.android.map(item => item.version);
+    var currentVersions = availableVersions.map((item) => item.version);
+    var updatedVersions = currentVersions.filter(val => !preVersions.includes(val));
+    if (!updatedVersions.length) return null;
+    var downloadLinks = { releases: [], currentlist: [] };
     for (let newVersion of updatedVersions) {
-        let formatedVersion = newVersion.version.replace(/\./g, '-');
+        let formatedVersion = newVersion.replace(/\./g, '-');
         let srcURL = `https://www.apkmirror.com/apk/whatsapp-inc/whatsapp/whatsapp-${formatedVersion}-release/whatsapp-messenger-${formatedVersion}-android-apk-download/`;
         const infoPage = await getWebContent(srcURL);
         const parsedInfoPage = cheerio.load(infoPage);
-        // console.log(parsedInfoPage('#safeDownload > div > div > div.modal-body').text());
         var filename = parsedInfoPage('#safeDownload > div > div > div.modal-body > h5:nth-child(1) > span').text().trim();
         var md5 = parsedInfoPage('#safeDownload > div > div > div.modal-body > span:nth-child(13)').text();
-        var appInfo = parsedInfoPage('#file > div.row.d-flex.f-a-start > div:nth-child(1) > div > div:nth-child(1) > div.appspec-value').text();
         var publishedOn = parsedInfoPage('#file > div.row.d-flex.f-a-start > div:nth-child(1) > div > div:nth-child(7) > div.appspec-value > span').text();
+        var apkTitle = parsedInfoPage('#masthead > header > div > div > div.f-grow > h1').text();
+        var versionCode = parsedInfoPage('#variants > div > div > div:nth-child(2) > div:nth-child(1) > span:nth-child(6)').text();
         var downloadPageLink = parsedInfoPage('a[class^="accent_bg btn btn-flat downloadButton"]').first().attr('href');
         if (!downloadPageLink) continue;
         const downloadPage = await getWebContent('https://www.apkmirror.com' + downloadPageLink);
         const parsedDownloadPage = cheerio.load(downloadPage);
         var apkLink = parsedDownloadPage('a[rel="nofollow"]').first().attr('href');
         downloadLinks.releases.push({
+            title: apkTitle,
             version: newVersion,
+            versioncode: Number(versionCode),
             link: 'https://www.apkmirror.com' + apkLink,
             source: srcURL,
             md5: md5,
             filename: filename.replace('_apkmirror.com', ''),
-            date: publishedOn,
-            info: appInfo
+            date: publishedOn
         });
     }
-    downloadLinks.versions = {
-        stable: availableVersions.filter((item) => !/beta|alpha/.test(item.title)),
-        beta: availableVersions.filter((item) => /beta|alpha/.test(item.title)),
-        all: availableVersions
-    };
+    downloadLinks.currentlist = availableVersions;
     return downloadLinks;
 };
 
@@ -87,6 +86,12 @@ const downloadFile = async (url, filename) => {
 (async () => {
     const apiId = Number(process.env.API_ID);
     const apiHash = process.env.API_HASH;
+    console.log('fetching download links');
+    var androidData = await waAndroidLink('https://www.apkmirror.com/apk/whatsapp-inc/whatsapp/');
+    if (!androidData) return;
+    fs.writeFileSync('releases.json', JSON.stringify({ android: androidData.currentlist }, null, 2));
+    console.log('saved version info for future checks');
+
     const client = new TelegramClient(new StringSession(), apiId, apiHash, {
         connectionRetries: 3,
     });
@@ -94,24 +99,23 @@ const downloadFile = async (url, filename) => {
         botAuthToken: process.env.BOT_TOKEN,
     });
 
-    client._log.info('fetching download links');
-    var androidData = await waAndroidLink('https://www.apkmirror.com/apk/whatsapp-inc/whatsapp/');
-    fs.writeFileSync('releases.json', JSON.stringify({ android: androidData.versions }, null, 2));
-    client._log.warn('saved version info for future checks');
-    for (let release of androidData.releases) {
-        client._log.info(`downloading ${release.filename}`);
+    for (let release of androidData.releases.reverse()) {
+        console.log(`downloading ${release.filename}`);
         let filePath = await downloadFile(release.link, release.filename);
-        let caption = `**Whatsapp for android**\nVersion: \`${release.info.match(/\d\.\d+\.\d+\.\d+\s+\(\d+\)/gm)[0]}\`\nPublished on: \`${release.date}\`\nMD5: \`${release.md5}\``;
-        client._log.info('uploading to telegram');
+        let caption = `**WhatsApp Messenger Android**\nVersion: \`${release.version} (${release.versioncode})\`\nPublished on: \`${release.date}\`\nMD5: \`${release.md5}\``;
+        console.log('uploading to telegram');
         await client.sendFile(process.env.CHANNEL_ID, { file: filePath, forceDocument: true, workers: 5, caption: caption });
         fs.unlinkSync(filePath);
     }
+
     try {
+        var latestBeta = androidData.currentlist.find(item => /beta|alpha/.test(item.title));
+        var latestStable = androidData.currentlist.find(item => !/beta|alpha/.test(item.title));
         const [text, entities] = await _parseMessageText(
             client,
-            `**Latest version:**\n\n**Android**\nBeta: \`${androidData.versions.beta[0].version} beta\`\nStable: \`${androidData.versions.stable[0].version}\``,
+            `**Whatsapp latest:**\n\n**WhatsApp Messenger**\nStable  : \`${latestStable.title.match(/\d\.\d+\.\d+\.\d+/gm)[0]}\` \nBeta    : \`${latestBeta.title.match(/\d\.\d+\.\d+\.\d+/gm)[0]} beta\``,
             'markdown'
-        )
+        );
         await client.invoke(new Api.messages.EditMessage({
             peer: Number(process.env.CHANNEL_ID),
             id: Number(process.env.MESSAGE_ID),
@@ -119,7 +123,7 @@ const downloadFile = async (url, filename) => {
             entities: entities
         }));
     } catch (err) {
-        // ignore
+        console.log(err);
     }
     client._log.warn("done exiting...");
     await client.disconnect();
