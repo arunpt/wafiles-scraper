@@ -17,8 +17,8 @@ jobs:
         env:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
-          BOTS_TOKEN: ${{ secrets.TOKEN }}
-          CHANNEL_ID: ${{ secrets.BOT_TOKEN }}
+          BOT_TOKEN: ${{ secrets.TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           MESSAGE_ID: ${{ secrets.MESSAGE_ID }}
         with:
           cmd: start
