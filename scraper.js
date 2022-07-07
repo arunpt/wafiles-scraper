@@ -1,9 +1,9 @@
-require('dotenv').config()
 const fs = require('fs');
 const nfetch = require('node-fetch');
 const cheerio = require('cheerio');
 const Downloader = require("nodejs-file-downloader");
 const { TelegramClient, Api } = require("telegram");
+const { _parseMessageText } = require("telegram/client/messageParse");
 const { StringSession } = require("telegram/sessions");
 
 const getWebContent = async (url, json = false) => {
@@ -27,18 +27,20 @@ const waAndroidLink = async (apkMirrorUrl) => {
             version: version.match(/\d\.\d+\.\d+\.\d+/gm)[0]
         });
     }
-    // now lets check for updates by comparing this data with previous one
-    var preVersions = await getWebContent('https://raw.githubusercontent.com/arunpt/archives/master/dummy.json', true)
-    var updatedVersions = preVersions.versions.filter((item) => availableVersions.map(item => item.version).indexOf(item) === -1);
+    // checking for updates by comparing this data with previous one since i dont wanna use a database so fetching data from github
+    var preVersions = await getWebContent('https://raw.githubusercontent.com/arunpt/wafiles/main/releases.json', true)
+    var combinedArray = preVersions.android.stable.concat(preVersions.android.beta);
+    var updatedVersions = combinedArray.filter((item) => availableVersions.map(item => item.version).indexOf(item) === -1);
     var downloadLinks = { releases: [], versions: [] };
     for (let newVersion of updatedVersions) {
-        let formatedVersion = newVersion.replace(/\./g, '-');
+        let formatedVersion = newVersion.version.replace(/\./g, '-');
         let srcURL = `https://www.apkmirror.com/apk/whatsapp-inc/whatsapp/whatsapp-${formatedVersion}-release/whatsapp-messenger-${formatedVersion}-android-apk-download/`;
         const infoPage = await getWebContent(srcURL);
         const parsedInfoPage = cheerio.load(infoPage);
         // console.log(parsedInfoPage('#safeDownload > div > div > div.modal-body').text());
         var filename = parsedInfoPage('#safeDownload > div > div > div.modal-body > h5:nth-child(1) > span').text().trim();
         var md5 = parsedInfoPage('#safeDownload > div > div > div.modal-body > span:nth-child(13)').text();
+        var appInfo = parsedInfoPage('#file > div.row.d-flex.f-a-start > div:nth-child(1) > div > div:nth-child(1) > div.appspec-value').text();
         var publishedOn = parsedInfoPage('#file > div.row.d-flex.f-a-start > div:nth-child(1) > div > div:nth-child(7) > div.appspec-value > span').text();
         var downloadPageLink = parsedInfoPage('a[class^="accent_bg btn btn-flat downloadButton"]').first().attr('href');
         if (!downloadPageLink) continue;
@@ -51,12 +53,14 @@ const waAndroidLink = async (apkMirrorUrl) => {
             source: srcURL,
             md5: md5,
             filename: filename.replace('_apkmirror.com', ''),
-            date: publishedOn
+            date: publishedOn,
+            info: appInfo
         });
     }
     downloadLinks.versions = {
         stable: availableVersions.filter((item) => !/beta|alpha/.test(item.title)),
-        beta: availableVersions.filter((item) => /beta|alpha/.test(item.title))
+        beta: availableVersions.filter((item) => /beta|alpha/.test(item.title)),
+        all: availableVersions
     };
     return downloadLinks;
 };
@@ -81,26 +85,43 @@ const downloadFile = async (url, filename) => {
 }
 
 (async () => {
-    const apiId = process.env.API_ID;
+    const apiId = Number(process.env.API_ID);
     const apiHash = process.env.API_HASH;
-    const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
+    const client = new TelegramClient(new StringSession(), apiId, apiHash, {
         connectionRetries: 3,
     });
     await client.start({
         botAuthToken: process.env.BOT_TOKEN,
     });
+
+    client._log.info('fetching download links');
     var androidData = await waAndroidLink('https://www.apkmirror.com/apk/whatsapp-inc/whatsapp/');
-    console.log(androidData);
     fs.writeFileSync('releases.json', JSON.stringify({ android: androidData.versions }, null, 2));
+    client._log.warn('saved version info for future checks');
     for (let release of androidData.releases) {
+        client._log.info(`downloading ${release.filename}`);
         let filePath = await downloadFile(release.link, release.filename);
-        let caption = `__${release.filename}__\nVersion: \`${release.version}\`\nPublished on: \`${release.date}\`\nMD5: \`${release.md5}\``;
+        let caption = `**Whatsapp for android**\nVersion: \`${release.info.match(/\d\.\d+\.\d+\.\d+\s+\(\d+\)/gm)[0]}\`\nPublished on: \`${release.date}\`\nMD5: \`${release.md5}\``;
+        client._log.info('uploading to telegram');
         await client.sendFile(process.env.CHANNEL_ID, { file: filePath, forceDocument: true, workers: 5, caption: caption });
         fs.unlinkSync(filePath);
     }
-    await client.invoke(new Api.messages.EditMessage({
-        peer: process.env.CHANNEL_ID,
-        id: process.env.MESSAGE_ID,
-        message: `Latest version:\n\nAndroid\nBeta: \`${androidData.versions.beta[0]}\`\nStable: \`${androidData.versions.stable[0]}\``,
-    }));
+    try {
+        const [text, entities] = await _parseMessageText(
+            client,
+            `**Latest version:**\n\n**Android**\nBeta: \`${androidData.versions.beta[0].version} beta\`\nStable: \`${androidData.versions.stable[0].version}\``,
+            'markdown'
+        )
+        await client.invoke(new Api.messages.EditMessage({
+            peer: Number(process.env.CHANNEL_ID),
+            id: Number(process.env.MESSAGE_ID),
+            message: text,
+            entities: entities
+        }));
+    } catch (err) {
+        // ignore
+    }
+    client._log.warn("done exiting...");
+    await client.disconnect();
+    process.exit(1);
 })();

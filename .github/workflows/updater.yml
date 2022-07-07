@@ -1,0 +1,29 @@
+name: fetch data
+on:
+  push:
+  schedule:
+    - cron: '* * * * *'
+
+jobs:
+  build:
+    name: checking for updates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: borales/actions-yarn@v3.0.0
+        with:
+          cmd: install
+      - uses: borales/actions-yarn@v3.0.0
+        env:
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          BOTS_TOKEN: ${{ secrets.TOKEN }}
+          CHANNEL_ID: ${{ secrets.BOT_TOKEN }}
+          MESSAGE_ID: ${{ secrets.MESSAGE_ID }}
+        with:
+          cmd: start
+      - uses: EndBug/add-and-commit@v9
+        with:
+          default_author: github_actions
+          message: 'whatsapp version bump'
+          add: 'releases.json'
