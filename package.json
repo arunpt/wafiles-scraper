@@ -1,0 +1,13 @@
+{
+  "name": "release",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^16.0.1",
+    "node-fetch": "^2.6.6",
+    "nodejs-file-downloader": "^4.9.3",
+    "telegram": "^2.9.8"
+  }
+}
