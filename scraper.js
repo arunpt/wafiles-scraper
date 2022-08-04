@@ -15,7 +15,7 @@ const getWebContent = async (url, json = false) => {
     return json ? await request.json() : await request.text();
 };
 
-const waAndroidLink = async (apkMirrorUrl) => {
+const waAndroidLink = async (apkMirrorUrl, business = false) => {
     var versionPage = await getWebContent(apkMirrorUrl);
     var parsedVersionPage = cheerio.load(versionPage);
     var versions = parsedVersionPage('h5[class="appRowTitle wrapText marginZero block-on-mobile"]').get();
@@ -29,20 +29,20 @@ const waAndroidLink = async (apkMirrorUrl) => {
     }
     // checking for updates by comparing this data with previous one since i dont wanna use a database so fetching data from github
     var prevData = await getWebContent('https://raw.githubusercontent.com/arunpt/wafiles/main/releases.json', true);
-    var preVersions = prevData.android.map(item => item.version);
+    var preVersions = business ? prevData.business.map(item => item.version) : prevData.android.map(item => item.version);
     var currentVersions = availableVersions.map((item) => item.version);
     var updatedVersions = currentVersions.filter(val => !preVersions.includes(val));
     if (!updatedVersions.length) return null;
     var downloadLinks = { releases: [], currentlist: [] };
     for (let newVersion of updatedVersions) {
         let formatedVersion = newVersion.replace(/\./g, '-');
-        let srcURL = `https://www.apkmirror.com/apk/whatsapp-inc/whatsapp/whatsapp-${formatedVersion}-release/whatsapp-messenger-${formatedVersion}-android-apk-download/`;
+        let srcURL = `https://www.apkmirror.com/apk/whatsapp-inc/${business ? 'whatsapp-business' : 'whatsapp'}/${business ? 'whatsapp-business' : 'whatsapp'}-${formatedVersion}-release/${business ? 'whatsapp-business' : 'whatsapp-messenger'}-${formatedVersion}-android-apk-download/`;
         const infoPage = await getWebContent(srcURL);
         const parsedInfoPage = cheerio.load(infoPage);
         var filename = parsedInfoPage('#safeDownload > div > div > div.modal-body > h5:nth-child(1) > span').text().trim();
         var md5 = parsedInfoPage('#safeDownload > div > div > div.modal-body > span:nth-child(13)').text();
-        var publishedOn = parsedInfoPage('#file > div.row.d-flex.f-a-start > div:nth-child(1) > div > div:nth-child(7) > div.appspec-value > span').text();
-        var apkTitle = parsedInfoPage('#masthead > header > div > div > div.f-grow > h1').text();
+        var publishedOn = parsedInfoPage('#file > div.row.d-flex.f-a-start > div:nth-child(1) > div > div:nth-child(8) > div.appspec-value > span').text();
+        var apkTitle = parsedInfoPage('#masthead > header > div > div > div.f-grow > h1').text().trim();
         var versionCode = parsedInfoPage('#variants > div > div > div:nth-child(2) > div:nth-child(1) > span:nth-child(6)').text();
         var downloadPageLink = parsedInfoPage('a[class^="accent_bg btn btn-flat downloadButton"]').first().attr('href');
         if (!downloadPageLink) continue;
@@ -88,10 +88,10 @@ const downloadFile = async (url, filename) => {
     const apiHash = process.env.API_HASH;
     console.log('fetching download links');
     var androidData = await waAndroidLink('https://www.apkmirror.com/apk/whatsapp-inc/whatsapp/');
-    if (!androidData) return;
-    fs.writeFileSync('releases.json', JSON.stringify({ android: androidData.currentlist }, null, 2));
+    var androidBuinessData = await waAndroidLink('https://www.apkmirror.com/apk/whatsapp-inc/whatsapp-business/', true);
+    if (!(androidData || androidBuinessData)) return;
+    fs.writeFileSync('releases.json', JSON.stringify({ android: androidData.currentlist, business: androidBuinessData.currentlist }, null, 2));
     console.log('saved version info for future checks');
-
     const client = new TelegramClient(new StringSession(), apiId, apiHash, {
         connectionRetries: 3,
     });
@@ -99,10 +99,10 @@ const downloadFile = async (url, filename) => {
         botAuthToken: process.env.BOT_TOKEN,
     });
 
-    for (let release of androidData.releases.reverse()) {
+    for (let release of androidData.releases.concat(androidBuinessData.releases).reverse()) {
         console.log(`downloading ${release.filename}`);
         let filePath = await downloadFile(release.link, release.filename);
-        let caption = `**WhatsApp Messenger Android ${/beta|alpha/.test(release.title) ? 'beta': ''}**\nVersion: \`${release.version} (${release.versioncode})\`\nPublished on: \`${release.date}\`\nMD5: \`${release.md5}\``;
+        let caption = `**${/business/i.test(release.title) ? 'WhatsApp Business Android' : 'WhatsApp Messenger Android'} ${/beta|alpha/.test(release.title) ? 'beta' : ''}**\nVersion: \`${release.version} (${release.versioncode})\`\nPublished on: \`${release.date}\`\nMD5: \`${release.md5}\``;
         console.log('uploading to telegram');
         await client.sendFile(process.env.CHANNEL_ID, { file: filePath, forceDocument: true, workers: 5, caption: caption });
         fs.unlinkSync(filePath);
@@ -111,9 +111,12 @@ const downloadFile = async (url, filename) => {
     try {
         var latestBeta = androidData.currentlist.find(item => /beta|alpha/.test(item.title));
         var latestStable = androidData.currentlist.find(item => !/beta|alpha/.test(item.title));
+        var latestBusinessBeta = androidBuinessData.currentlist.find(item => /beta|alpha/.test(item.title));
+        var latestBusinessStable = androidBuinessData.currentlist.find(item => !/beta|alpha/.test(item.title));
+        const getVersionCode = (title) => title.match(/\d\.\d+\.\d+\.\d+/gm)[0];
         const [text, entities] = await _parseMessageText(
             client,
-            `**Whatsapp latest:**\n\n**WhatsApp Messenger**\nStable  : \`${latestStable.title.match(/\d\.\d+\.\d+\.\d+/gm)[0]}\` \nBeta    : \`${latestBeta.title.match(/\d\.\d+\.\d+\.\d+/gm)[0]} beta\``,
+            `**Whatsapp latest:**\n\n**WhatsApp Messenger Android**\nStable  : \`${getVersionCode(latestStable.title)}\` \nBeta    : \`${getVersionCode(latestBeta.title)} beta\`\n\n**WhatsApp Business Android**\nStable  : \`${getVersionCode(latestBusinessStable.title)}\` \nBeta    : \`${getVersionCode(latestBusinessBeta.title)} beta\``,
             'markdown'
         );
         await client.invoke(new Api.messages.EditMessage({
