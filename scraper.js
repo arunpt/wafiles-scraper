@@ -32,8 +32,8 @@ const waAndroidLink = async (apkMirrorUrl, business = false) => {
     var preVersions = business ? prevData.business.map(item => item.version) : prevData.android.map(item => item.version);
     var currentVersions = availableVersions.map((item) => item.version);
     var updatedVersions = currentVersions.filter(val => !preVersions.includes(val));
+    if (!updatedVersions.length) return null;
     var downloadLinks = { releases: [], currentlist: [] };
-    if (!updatedVersions.length) return downloadLinks;
     for (let newVersion of updatedVersions) {
         let formatedVersion = newVersion.replace(/\./g, '-');
         let srcURL = `https://www.apkmirror.com/apk/whatsapp-inc/${business ? 'whatsapp-business' : 'whatsapp'}/${business ? 'whatsapp-business' : 'whatsapp'}-${formatedVersion}-release/${business ? 'whatsapp-business' : 'whatsapp-messenger'}-${formatedVersion}-android-apk-download/`;
@@ -89,7 +89,9 @@ const downloadFile = async (url, filename) => {
     console.log('fetching download links');
     var androidData = await waAndroidLink('https://www.apkmirror.com/apk/whatsapp-inc/whatsapp/');
     var androidBuinessData = await waAndroidLink('https://www.apkmirror.com/apk/whatsapp-inc/whatsapp-business/', true);
-    fs.writeFileSync('releases.json', JSON.stringify({ android: androidData.currentlist, business: androidBuinessData.currentlist }, null, 2));
+    if (!(androidData || androidBuinessData)) return;
+    if (androidData) fs.writeFileSync('releases.json', JSON.stringify({ android: androidData.currentlist}, null, 2));
+    if (androidBuinessData) fs.writeFileSync('releases.json', JSON.stringify({ business: androidBuinessData.currentlist }, null, 2));
     console.log('saved version info for future checks');
     const client = new TelegramClient(new StringSession(), apiId, apiHash, {
         connectionRetries: 3,
