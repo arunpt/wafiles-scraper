@@ -1,10 +1,19 @@
 const fs = require('fs');
+require('dotenv').config()
 const nfetch = require('node-fetch');
 const cheerio = require('cheerio');
 const Downloader = require("nodejs-file-downloader");
 const { TelegramClient, Api } = require("telegram");
 const { _parseMessageText } = require("telegram/client/messageParse");
 const { StringSession } = require("telegram/sessions");
+const dayjs = require('dayjs');
+var timezone = require("dayjs/plugin/timezone");
+var utc = require("dayjs/plugin/utc");
+var advanced = require("dayjs/plugin/advancedFormat");
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.extend(advanced);
 
 const getWebContent = async (url, json = false) => {
     var request = await nfetch(url, {
@@ -28,7 +37,7 @@ const waAndroidLink = async (apkMirrorUrl, business = false) => {
         });
     }
     // checking for updates by comparing this data with previous one since i dont wanna use a database so fetching data from github
-    var prevData = await getWebContent('https://raw.githubusercontent.com/arunpt/wafiles/main/releases.json', true);
+    var prevData = JSON.parse(fs.readFileSync('releases.json', 'utf8'));
     var preVersions = business ? prevData.business.map(item => item.version) : prevData.android.map(item => item.version);
     var currentVersions = availableVersions.map((item) => item.version);
     var updatedVersions = currentVersions.filter(val => !preVersions.includes(val));
@@ -97,7 +106,10 @@ const downloadFile = async (url, filename) => {
         botAuthToken: process.env.BOT_TOKEN,
     });
 
-    for (let release of androidData.releases.concat(androidBuinessData.releases).reverse()) {
+    var releaseDiffs = androidData.releases.concat(androidBuinessData.releases).reverse();
+    console.log(`found ${releaseDiffs.length} release diffs`);
+
+    for (let release of releaseDiffs) {
         console.log(`downloading ${release.filename}`);
         let filePath = await downloadFile(release.link, release.filename);
         let caption = `**${/business/i.test(release.title) ? 'WhatsApp Business Android' : 'WhatsApp Messenger Android'} ${/beta|alpha/.test(release.title) ? 'beta' : ''}**\nVersion: \`${release.version} (${release.versioncode})\`\nPublished on: \`${release.date}\`\nMD5: \`${release.md5}\``;
@@ -112,17 +124,31 @@ const downloadFile = async (url, filename) => {
         var latestBusinessBeta = androidBuinessData.currentlist.find(item => /beta|alpha/.test(item.title));
         var latestBusinessStable = androidBuinessData.currentlist.find(item => !/beta|alpha/.test(item.title));
         const getVersionCode = (title) => title.match(/\d\.\d+\.\d+\.\d+/gm)[0];
-        const [text, entities] = await _parseMessageText(
-            client,
-            `**Whatsapp latest:**\n\n**WhatsApp Messenger Android**\nStable  : \`${getVersionCode(latestStable.title)}\` \nBeta    : \`${getVersionCode(latestBeta.title)} beta\`\n\n**WhatsApp Business Android**\nStable  : \`${getVersionCode(latestBusinessStable.title)}\` \nBeta    : \`${getVersionCode(latestBusinessBeta.title)} beta\``,
-            'markdown'
+        const result = await client.invoke(
+            new Api.channels.GetMessages({
+                channel: Number(process.env.CHANNEL_ID),
+                id: [2],
+            })
         );
+        var [message] = result.messages;
+        var msgText = message.message;
+        var [WAStableEntity, WAbetaEntity, WABStableEntity, WABbetaEntity] = message.entities.filter(ent => ent.className === "MessageEntityCode");
+        var WAStableText = msgText.slice(WAStableEntity.offset, WAStableEntity.offset + WAStableEntity.length).trim();
+        var WAbetaText = msgText.slice(WAbetaEntity.offset, WAbetaEntity.offset + WAbetaEntity.length).trim();
+        var WABStableText = msgText.slice(WABStableEntity.offset, WABStableEntity.offset + WABStableEntity.length).trim();
+        var WABbetaText = msgText.slice(WABbetaEntity.offset, WABbetaEntity.offset + WABbetaEntity.length).trim();
+        var msgString = `**Whatsapp latest:**\n\n`;
+        msgString += `**WhatsApp Messenger Android**\nStable  : \`${latestStable ? getVersionCode(latestStable.title) : WAStableText}\` \nBeta    : \`${latestBeta ? getVersionCode(latestBeta.title) : WAbetaText} beta\`\n\n`;
+        msgString += `**WhatsApp Business Android**\nStable  : \`${latestBusinessStable ? getVersionCode(latestBusinessStable.title) : WABStableText}\` \nBeta    : \`${latestBusinessBeta ? getVersionCode(latestBusinessBeta.title) : WABbetaText} beta\`\n\n`
+        msgString += `Last updated on: __${dayjs().tz("Asia/Kolkata").format("DD/MM/YYYY h:mm:ss IST")}__`
+        const [text, entities] = await _parseMessageText(client, msgString, 'markdown');
         await client.invoke(new Api.messages.EditMessage({
             peer: Number(process.env.CHANNEL_ID),
             id: Number(process.env.MESSAGE_ID),
             message: text,
             entities: entities
         }));
+        console.log("edited telegram message");
     } catch (err) {
         console.log(err);
     }
