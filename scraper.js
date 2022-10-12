@@ -127,7 +127,7 @@ const downloadFile = async (url, filename) => {
         const result = await client.invoke(
             new Api.channels.GetMessages({
                 channel: Number(process.env.CHANNEL_ID),
-                id: [2],
+                id: [Number(process.env.MESSAGE_ID)],
             })
         );
         var [message] = result.messages;
