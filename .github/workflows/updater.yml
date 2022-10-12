@@ -1,6 +1,9 @@
 name: fetch data
 on:
+  workflow_dispatch:
   push:
+    branches:
+      - main
   schedule:
     - cron: '* * * * *'
 
