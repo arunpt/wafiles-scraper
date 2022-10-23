@@ -1,6 +1,30 @@
 {
   "android": [
     {
+      "title": "WhatsApp Messenger 2.22.22.77",
+      "version": "2.22.22.77"
+    },
+    {
+      "title": "WhatsApp Messenger 2.22.23.12 beta",
+      "version": "2.22.23.12"
+    },
+    {
+      "title": "WhatsApp Messenger 2.22.23.9 beta",
+      "version": "2.22.23.9"
+    },
+    {
+      "title": "WhatsApp Messenger 2.22.22.76",
+      "version": "2.22.22.76"
+    },
+    {
+      "title": "WhatsApp Messenger 2.22.23.7 beta",
+      "version": "2.22.23.7"
+    },
+    {
+      "title": "WhatsApp Messenger 2.22.22.75",
+      "version": "2.22.22.75"
+    },
+    {
       "title": "WhatsApp Messenger 2.22.23.5 beta",
       "version": "2.22.23.5"
     },
@@ -15,33 +39,21 @@
     {
       "title": "WhatsApp Messenger 2.22.22.71",
       "version": "2.22.22.71"
-    },
-    {
-      "title": "WhatsApp Messenger 2.22.22.16 beta",
-      "version": "2.22.22.16"
-    },
-    {
-      "title": "WhatsApp Messenger 2.22.22.14 beta",
-      "version": "2.22.22.14"
-    },
-    {
-      "title": "WhatsApp Messenger 2.22.21.84",
-      "version": "2.22.21.84"
-    },
-    {
-      "title": "WhatsApp Messenger 2.22.21.83",
-      "version": "2.22.21.83"
-    },
-    {
-      "title": "WhatsApp Messenger 2.22.22.12 beta",
-      "version": "2.22.22.12"
-    },
-    {
-      "title": "WhatsApp Messenger 2.22.22.11 beta",
-      "version": "2.22.22.11"
     }
   ],
   "business": [
+    {
+      "title": "WhatsApp Business 2.22.23.11 beta",
+      "version": "2.22.23.11"
+    },
+    {
+      "title": "WhatsApp Business 2.22.23.9 beta",
+      "version": "2.22.23.9"
+    },
+    {
+      "title": "WhatsApp Business 2.22.23.7 beta",
+      "version": "2.22.23.7"
+    },
     {
       "title": "WhatsApp Business 2.22.23.5 beta",
       "version": "2.22.23.5"
@@ -69,18 +81,6 @@
     {
       "title": "WhatsApp Business 2.22.22.10 beta",
       "version": "2.22.22.10"
-    },
-    {
-      "title": "WhatsApp Business 2.22.22.8 beta",
-      "version": "2.22.22.8"
-    },
-    {
-      "title": "WhatsApp Business 2.22.22.7 beta",
-      "version": "2.22.22.7"
-    },
-    {
-      "title": "WhatsApp Business 2.22.22.6 beta",
-      "version": "2.22.22.6"
     }
   ]
 }
