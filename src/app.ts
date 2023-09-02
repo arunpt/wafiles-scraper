@@ -91,7 +91,7 @@ const downloadLinkParser = async (org: string, slug: string, version: string) =>
   const $ = load(infoPage);
   var filename = $('#safeDownload > div > div > div.modal-body > h5:nth-child(1) > span').text().trim();
   var md5 = $('#safeDownload > div > div > div.modal-body > span:nth-child(13)').text();
-  var publishedOn = $('#file > div.row.d-flex.f-a-start > div:nth-child(1) > div > div:nth-child(8) > div.appspec-value > span').text();
+  var publishedOn = $('div.apk-detail-table span.datetime_utc').text();
   var publishedOnIST = moment.utc(publishedOn, "MMMM D, YYYY [at] h:mmA [UTC]").utcOffset("+05:30").format("DD-MM-YYYY HH:mm:ss [IST]")
   var apkTitle = $('#masthead > header > div > div > div.f-grow > h1').text().trim();
   var versionCode = $('#variants > div > div > div:nth-child(2) > div:nth-child(1) > span:nth-child(6)').text();
