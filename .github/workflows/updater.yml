@@ -26,10 +26,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           MESSAGE_ID: ${{ secrets.MESSAGE_ID }}
+          LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
         with:
           cmd: start
-      - uses: EndBug/add-and-commit@v9
-        with:
-          default_author: github_actions
-          message: 'whatsapp bump version'
-          add: 'releases.json'
